@@ -1,11 +1,11 @@
 streamlit
 opencv-python
+opencv-contrib-python
 pytesseract
 numpy
 transformers
 torch
 torchvision
-cv2
 
 
  
