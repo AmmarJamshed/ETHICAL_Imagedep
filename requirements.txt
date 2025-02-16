@@ -1,0 +1,11 @@
+streamlit
+opencv-python
+pytesseract
+numpy
+transformers
+torch
+torchvision
+
+
+
+ 
