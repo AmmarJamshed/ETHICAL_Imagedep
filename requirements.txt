@@ -1,11 +1,13 @@
 streamlit
-opencv-python
-opencv-contrib-python
+opencv-python==4.5.5.64
+opencv-contrib-python==4.5.5.64
 pytesseract
 numpy
+pillow
 transformers
 torch
 torchvision
-
+scipy
+matplotlib
 
  
