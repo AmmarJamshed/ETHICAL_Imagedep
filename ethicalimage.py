@@ -8,79 +8,64 @@ import streamlit as st
 import cv2
 import numpy as np
 import pytesseract
+import torch
 from transformers import pipeline
-import re
+from PIL import Image
 
-# Set Tesseract Path (Modify for Windows users)
-pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
+# Load NLP model for ethical issue detection
+ethics_analyzer = pipeline("text-classification", model="facebook/bart-large-mnli")
 
-# Load NLP Model for Ethical Analysis
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+# Function to analyze an image using OpenCV
+def analyze_image(image):
+    # Convert to OpenCV format
+    img = np.array(image.convert("RGB"))
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-# List of Ethical Concerns
-ETHICAL_CATEGORIES = [
-    "privacy violation",
-    "violence or abuse",
-    "discrimination or bias",
-    "misinformation",
-    "graphic content",
-    "environmental impact"
-]
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-# Streamlit UI
-st.title("🧐 Ethical Image Analysis Tool")
+    # Apply edge detection
+    edges = cv2.Canny(gray, 100, 200)
 
-st.write("""
-Upload an image, and this tool will analyze potential ethical concerns using **Computer Vision (OpenCV) and NLP**.
-""")
+    # Perform OCR with Tesseract
+    text = pytesseract.image_to_string(gray)
 
-uploaded_file = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
+    return edges, text
 
-def preprocess_image(image):
-    """Convert image to grayscale and apply thresholding for better OCR."""
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return binary
+# Function to detect ethical concerns
+def detect_ethics(text):
+    labels = ["violence", "hate speech", "offensive", "safe content"]
+    result = ethics_analyzer(text, candidate_labels=labels)
+    return result
 
-def extract_text(image):
-    """Extract text from image using Tesseract OCR."""
-    processed_img = preprocess_image(image)
-    return pytesseract.image_to_string(processed_img, lang="eng")
+# Streamlit App UI
+st.title("🖼️ Ethical Image Analyzer")
+st.write("Upload an image, and the system will analyze it for potential ethical issues.")
 
-def analyze_ethical_issues(text):
-    """Classify ethical concerns in image description."""
-    result = classifier(text, ETHICAL_CATEGORIES)
-    issues = {label: score for label, score in zip(result["labels"], result["scores"]) if score > 0.5}
-    return issues
+uploaded_file = st.file_uploader("Upload an Image", type=["jpg", "png", "jpeg"])
 
 if uploaded_file:
-    # Convert uploaded file to OpenCV image
-    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    image = cv2.imdecode(file_bytes, 1)
-    
-    # Display uploaded image
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+    image = Image.open(uploaded_file)
 
-    # Extract Text from Image
-    extracted_text = extract_text(image)
+    # Analyze Image
+    edges, extracted_text = analyze_image(image)
 
+    # Show Original & Processed Images
+    st.image(image, caption="Original Image", use_column_width=True)
+    st.image(edges, caption="Edge Detection", use_column_width=True, channels="GRAY")
+
+    # Display Extracted Text
+    st.subheader("Extracted Text from Image:")
+    st.write(extracted_text if extracted_text.strip() else "No readable text found.")
+
+    # Ethical Issue Detection
     if extracted_text.strip():
-        st.subheader("📖 Extracted Text:")
-        st.write(extracted_text)
-
-        # Ethical Analysis
-        st.subheader("⚖️ Ethical Concerns:")
-        issues = analyze_ethical_issues(extracted_text)
-        
-        if issues:
-            for issue, score in issues.items():
-                st.write(f"🔴 **{issue}** - Confidence: {score:.2f}")
-        else:
-            st.write("✅ No significant ethical concerns detected.")
+        st.subheader("Ethical Analysis of Extracted Text:")
+        ethics_result = detect_ethics(extracted_text)
+        for item in ethics_result:
+            st.write(f"**{item['label'].capitalize()}**: {round(item['score'] * 100, 2)}% confidence")
     else:
-        st.warning("⚠️ No text found. Try uploading a clearer image.")
-
-st.write("Developed by **Ammar Jamshed** | Powered by OpenCV & NLP 🚀")
+        st.write("No text detected for ethical analysis.")
 
 
 # In[ ]:
